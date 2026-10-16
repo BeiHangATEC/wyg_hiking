@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>DAGGER 相机输入</title>
+  <style>
+    :root{color-scheme:light;--ink:#202628;--muted:#697376;--line:#dce2e3;--green:#186b49;--amber:#a46112;--red:#b12d31}
+    *{box-sizing:border-box;letter-spacing:0}body{margin:0;background:#f7f9fa;color:var(--ink);font:14px system-ui,"Noto Sans CJK SC",sans-serif}
+    header{background:#fff;border-bottom:1px solid var(--line)}.bar{max-width:1480px;margin:auto;padding:18px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    h1{font-size:21px;font-weight:650;margin:0}#connection{font-size:12px;color:var(--muted)}.commands{display:flex;align-items:center;gap:18px;margin-left:auto}
+    label{display:flex;gap:7px;align-items:center;white-space:nowrap}input{accent-color:var(--green);width:16px;height:16px;margin:0}
+    button{font:inherit;background:#fff;border:1px solid #bfcacd;border-radius:4px;padding:7px 12px;cursor:pointer;color:var(--ink);min-height:36px}button:hover{background:#edf3f1}button:disabled{opacity:.45;cursor:default}
+    main{max-width:1480px;margin:auto;padding:22px 24px}.context{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:20px;color:var(--muted);font-size:12px}.context strong{color:var(--ink);font-weight:500}
+    .views{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr) minmax(0,1fr);gap:24px}section{min-width:0;border-top:2px solid #c5d0d2;padding-top:13px}.title{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;flex-wrap:wrap;margin-bottom:12px}h2{font-size:15px;font-weight:650;margin:0}.status{font-size:12px;color:var(--muted)}.status.live{color:var(--green)}.status.stale{color:var(--amber)}.status.invalid{color:var(--red)}
+    .surface{height:320px;background:#e9eeef;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}.surface img{max-width:100%;max-height:100%;object-fit:contain;display:block}.tensor img{width:min(100%,320px);aspect-ratio:1;image-rendering:pixelated}.surface .empty{color:var(--muted);text-align:center;padding:20px}.surface.has-image .empty{display:none}.surface:not(.has-image) img{display:none}
+    dl{margin:14px 0 0}dl div{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #e6ebec;padding:8px 0;min-height:34px}dt{color:var(--muted);flex-shrink:0}dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}code{font:12px ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}
+    .scale{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--muted);margin-top:10px}.ramp{height:6px;flex:1;background:linear-gradient(90deg,#30123b,#466be3,#24b7e2,#46f37a,#d7e535,#fc8a24,#b81e1c);border-radius:0}.detail{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:14px 32px;color:var(--muted);font-size:12px}.detail div{min-width:0;overflow-wrap:anywhere}.detail code{display:block;color:#44545a;margin-top:5px}#error{color:var(--red);margin-top:14px;overflow-wrap:anywhere;min-height:18px}#paused-mark{color:var(--amber);display:none;font-size:12px}
+    @media(max-width:1000px){.views{grid-template-columns:1fr 1fr}.views section:first-child{grid-column:1/-1}.views section:first-child .surface{height:350px}.surface{height:290px}}
+    @media(max-width:600px){.bar{padding:14px 16px;gap:12px}h1{font-size:19px}.commands{width:100%;margin-left:0;justify-content:space-between}main{padding:18px 16px}.views{grid-template-columns:1fr;gap:28px}.views section:first-child{grid-column:auto}.views section:first-child .surface{height:auto;aspect-ratio:848/480}.surface{height:auto;aspect-ratio:1}.tensor img{width:100%;max-height:none}.detail{grid-template-columns:1fr}.context{gap:10px;margin-bottom:16px}}
+  </style>
+</head>
+<body>
+  <header><div class="bar"><h1>DAGGER 相机输入</h1><span id="connection" role="status">连接中</span><div class="commands"><label><input id="pause" type="checkbox">暂停显示</label><span id="paused-mark">画面已暂停</span><button id="download" disabled>下载快照</button></div></div></header>
+  <main>
+    <div class="context"><strong>dagger_new_position</strong><span id="domain">ROS --</span><span id="fps">-- Hz</span><span id="received">-- 帧</span><span id="receive-age">接收龄 --</span></div>
+    <div class="views">
+      <section><div class="title"><h2>原生深度</h2><span id="native-status" class="status">等待相机</span></div><div class="surface" id="native-surface"><img id="native-image" alt="原生深度及裁剪区域"><div class="empty">等待深度与 CameraInfo</div></div><div class="scale"><span id="depth-min">0.2 m</span><div class="ramp"></div><span id="depth-max">3.0 m</span></div><dl><div><dt>分辨率 / 编码</dt><dd id="resolution">--</dd></div><div><dt>全图 / 裁剪区无效值</dt><dd id="invalid">--</dd></div><div><dt>裁剪区域 x, y, w, h</dt><dd id="crop">--</dd></div><div><dt>时间戳</dt><dd id="stamp">--</dd></div></dl></section>
+      <section><div class="title"><h2>预处理预览</h2><span id="preview-status" class="status">等待相机</span></div><div class="surface tensor" id="preview-surface"><img id="preview-image" alt="36乘36预处理深度预览"><div class="empty">未生成预览</div></div><div class="scale"><span>-0.5</span><div class="ramp"></div><span>0.5</span></div><dl><div><dt>输入形状 / 类型</dt><dd>[1, 36, 36] / float32</dd></div><div><dt>最小 / 最大值</dt><dd id="preview-range">--</dd></div><div><dt>非有限值</dt><dd id="preview-nonfinite">--</dd></div><div><dt>fx, fy / cx, cy</dt><dd id="intrinsics">--</dd></div></dl></section>
+      <section><div class="title"><h2>推理后端实际输入</h2><span id="actual-status" class="status">等待记录</span></div><div class="surface tensor" id="actual-surface"><img id="actual-image" alt="控制器后端记录的实际深度输入"><div class="empty" id="actual-empty">未收到控制器输入</div></div><div class="scale"><span>-0.5</span><div class="ramp"></div><span>0.5</span></div><dl><div><dt>样本 / 后端</dt><dd id="actual-sample">--</dd></div><div><dt>记录更新时间 / 龄</dt><dd id="actual-time">--</dd></div><div><dt>depth_data 最小 / 最大</dt><dd id="actual-range">--</dd></div><div><dt>obs_history / h_in</dt><dd id="actual-shapes">--</dd></div></dl></section>
+    </div>
+    <div class="detail"><div>深度话题<code id="depth-topic">--</code></div><div>CameraInfo 话题<code id="info-topic">--</code></div><div>光学坐标系<code id="optical-frame">--</code></div><div>后端记录目录<code id="capture-directory">--</code></div></div>
+    <div id="error" role="status"></div>
+  </main>
+  <script>
+    const get = id => document.getElementById(id);
+    const labels = {live:'实时',waiting:'等待数据',stale:'已停更',invalid:'数据异常'};
+    let displayedCamera = null, displayedActual = null;
+    const number = (value, digits=1) => Number.isFinite(value) ? value.toFixed(digits) : '--';
+    const timeLabel = ns => ns ? new Date(ns / 1e6).toLocaleTimeString('zh-CN', {hour12:false}) : '--';
+    function text(id, value) { get(id).textContent = value; }
+    function status(id, state) { const element=get(id); element.textContent=labels[state] || '等待数据'; element.className='status '+state; }
+    function picture(name, available, version) {
+      const surface=get(name+'-surface'); surface.classList.toggle('has-image', available);
+      if (available) get(name+'-image').src='/api/image/'+name+'.png?v='+encodeURIComponent(version);
+      else get(name+'-image').removeAttribute('src');
+    }
+    function update(frame) {
+      const camera=frame.camera, actual=frame.actual, info=camera.info;
+      text('connection','已连接'); text('domain','ROS '+frame.domain);
+      text('fps',number(camera.fps)+' Hz'); text('received',(camera.received || 0)+' 帧');
+      text('receive-age','接收龄 '+number(camera.age_ms)+' ms');
+      if (!get('pause').checked) {
+        status('native-status',camera.state); status('preview-status',camera.state); status('actual-status',actual.state);
+        if (camera.seq !== displayedCamera) { picture('native',camera.seq != null,camera.seq); picture('preview',camera.seq != null,camera.seq); displayedCamera=camera.seq; }
+        if (actual.updated_ns !== displayedActual) { picture('actual',actual.sample != null,actual.updated_ns); displayedActual=actual.updated_ns; }
+        text('resolution',info ? `${info.width} × ${info.height} / ${camera.encoding}` : '--');
+        text('invalid',`${number(camera.invalid_percent,2)}% / ${number(camera.crop_invalid_percent,2)}%`);
+        text('crop',camera.crop ? camera.crop.join(', ') : '--'); text('stamp',timeLabel(camera.stamp_ns));
+        const summary=camera.tensor_summary;
+        text('preview-range',summary ? `${number(summary.min,4)} / ${number(summary.max,4)}` : '--');
+        text('preview-nonfinite',summary ? number(summary.nonfinite_fraction*100,2)+'%' : '--');
+        text('intrinsics',info ? `${number(info.k[0],2)}, ${number(info.k[4],2)} / ${number(info.k[2],2)}, ${number(info.k[5],2)}` : '--');
+        text('actual-sample',actual.sample != null ? `${actual.sample} / ${actual.backend}` : '--');
+        text('actual-time',actual.updated_ns ? `${timeLabel(actual.updated_ns)} / ${number(actual.age_ms)} ms` : '--');
+        const depth=actual.summary?.depth_data;
+        text('actual-range',depth ? `${number(depth.min,4)} / ${number(depth.max,4)}` : '--');
+        text('actual-shapes',actual.summary ? `${actual.summary.obs_history.shape.join('×')} / ${actual.summary.h_in.shape.join('×')}` : '--');
+        text('actual-empty',actual.state==='invalid' ? '记录不可用' : '未收到控制器输入');
+      }
+      text('depth-topic',frame.topics?.[0] || '--'); text('info-topic',frame.topics?.[1] || '--');
+      text('optical-frame',info?.frame_id || '--'); text('capture-directory',actual.directory || '--');
+      text('depth-min',(frame.display_range_m?.[0] ?? '--')+' m'); text('depth-max',(frame.display_range_m?.[1] ?? '--')+' m');
+      text('error',[camera.error,actual.error].filter(Boolean).join(' · '));
+      get('download').disabled=!frame.has_snapshot || get('pause').checked;
+    }
+    get('pause').addEventListener('change',()=>{ get('paused-mark').style.display=get('pause').checked ? 'inline' : 'none'; displayedCamera=null; displayedActual=null; get('download').disabled=get('pause').checked; });
+    get('download').addEventListener('click',()=>{ window.location.href='/api/snapshot.npz'; });
+    async function poll() {
+      try { const response=await fetch('/api/frame',{cache:'no-store',signal:AbortSignal.timeout(2500)}); if(!response.ok) throw Error('HTTP '+response.status); update(await response.json()); }
+      catch(error) { text('connection','连接中断'); text('error','窗口连接已断开'); status('native-status','stale'); status('preview-status','stale'); status('actual-status','stale'); get('download').disabled=true; }
+      setTimeout(poll,200);
+    }
+    poll();
+  </script>
+</body>
+</html>
